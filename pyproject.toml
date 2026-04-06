@@ -1,0 +1,12 @@
+[project]
+name = "movie-review-sentiment-analysis"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "cookiecutter>=2.7.1",
+]
