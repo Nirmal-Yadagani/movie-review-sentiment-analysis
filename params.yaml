@@ -1,0 +1,10 @@
+data_ingestion:
+  data_url: "s3://movie-reviews-dataset-307869869272-us-east-1-an/IMDB.csv"
+  test_size: 0.2
+  random_state: 42
+  data_path: data/
+
+data_preprocessing:
+  embedder_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  text_column: "review"
+  embedder_save_folder: "models/production_onnx_model/"
