@@ -215,3 +215,8 @@ references/
 reports/
 features/
 notebooks/production_onnx_model
+
+# need to track later
+.github
+scripts
+tests

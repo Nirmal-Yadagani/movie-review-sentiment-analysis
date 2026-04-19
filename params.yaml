@@ -1,10 +1,30 @@
 data_ingestion:
-  data_url: "s3://movie-reviews-dataset-307869869272-us-east-1-an/IMDB.csv"
+  data_url: s3://movie-reviews-dataset-307869869272-us-east-1-an/IMDB.csv
   test_size: 0.2
   random_state: 42
   data_path: data/
 
 data_preprocessing:
-  embedder_model_name: "sentence-transformers/all-MiniLM-L6-v2"
-  text_column: "review"
-  embedder_save_folder: "models/production_onnx_model/"
+  embedder_model_name: sentence-transformers/all-MiniLM-L6-v2
+  text_column: review
+  embedder_save_folder: models/production_onnx_model/
+
+model_training:
+  model_params:
+    hidden_layer_sizes: [100, ]
+    activation: tanh
+    solver: sgd
+    alpha: 0.003600575029200904
+    learning_rate_init: 0.001
+  model_path: models/classification_models/model.joblib
+
+model_evaluation:
+  embedder_folder_path: models/production_onnx_model
+  model_file_path: models/classification_models/model.joblib
+  metrics_file_path: reports/metrics.json
+  model_info_file_path: reports/model.json
+  register_model_name: MLPClassifier
+
+model_promotion:
+  target_metric: f1_score
+  improvement_threshold: 0.01  # Requires at least a 1% improvement to replace production

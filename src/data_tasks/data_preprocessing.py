@@ -85,10 +85,14 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(embedder_model_name)
 
         train_processed = encode_series_in_batches(train_data[text_column], tokenizer, onnx_model)
+        train_labels = train_data['sentiment']
         test_processed = encode_series_in_batches(test_data[text_column], tokenizer, onnx_model)
+        test_labels = test_data['sentiment']
 
         np.save(r'data\processed\train_embeddings.npy', train_processed)
+        np.save(r'data\processed\train_labels.npy', train_labels)
         np.save(r'data\processed\test_embeddings.npy', test_processed)
+        np.save(r'data\processed\test_labels.npy', test_labels)
         logger.info("Preprocessed data saved successfully.", train_embeddings_path='data\processed\train_embeddings.npy', test_embeddings_path='data\processed\test_embeddings.npy')
 
         onnx_model.save_pretrained(save_folder)

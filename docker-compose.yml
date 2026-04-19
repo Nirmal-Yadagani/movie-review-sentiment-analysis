@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  # 1. The MLflow Model API (The container you built in GitHub Actions)
+  model_backend:
+    image: sentiment-model:staging # This must match the name you used in 'mlflow models build-docker'
+    ports:
+      - "5080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 2. The Streamlit UI
+  frontend:
+    build: 
+      context: ./frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      model_backend:
+        condition: service_healthy # Wait for the model API to boot up before starting the UI
