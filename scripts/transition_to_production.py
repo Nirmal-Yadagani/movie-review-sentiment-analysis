@@ -1,10 +1,10 @@
+import os
 import sys
-import dagshub
+import mlflow
 from mlflow.tracking import MlflowClient
-from dotenv import load_dotenv
 
-load_dotenv()
-dagshub.init(repo_owner='Nirmal-Yadagani', repo_name='movie-review-sentiment-analysis', mlflow=True)
+# Notice we removed dagshub.init() and dotenv! 
+# GitHub Actions injects the MLflow environment variables securely for us.
 
 def transition_staging_to_production(model_name):
     client = MlflowClient()
@@ -32,6 +32,6 @@ def transition_staging_to_production(model_name):
         sys.exit(1)
 
 if __name__ == "__main__":
-    # Ensure this matches your params.yaml register_model_name
+    # Ensure this matches your registered model name
     model_name = "MLPClassifier" 
     transition_staging_to_production(model_name)
