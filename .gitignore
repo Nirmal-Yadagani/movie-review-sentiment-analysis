@@ -220,3 +220,6 @@ notebooks/production_onnx_model
 .github
 scripts
 tests
+
+# just for local deployment test
+backend/model_artifact/

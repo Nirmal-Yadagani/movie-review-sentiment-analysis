@@ -49,7 +49,7 @@ def encode_series_in_batches(text_series, tokenizer, onnx_model, batch_size=32):
     return np.vstack(all_embeddings)
 
 
-def encode_text(text):
+def encode_text(text, tokenizer, onnx_model):
     """
     Safely converts a single string of text into an array of embeddings.
     """
@@ -76,8 +76,8 @@ def main():
 
         os.makedirs(save_folder, exist_ok=True)
 
-        train_data = pd.read_csv(r'data\raw\train.csv')
-        test_data = pd.read_csv(r'data\raw\test.csv')
+        train_data = pd.read_csv(os.path.join('data', 'raw', 'train.csv'))
+        test_data = pd.read_csv(os.path.join('data', 'raw', 'test.csv'))
         logger.info("Data loaded successfully.", train_data_shape=train_data.shape, test_data_shape=test_data.shape)
  
         logger.info("Initializing ONNX model and tokenizer...", model_name=embedder_model_name)
@@ -88,12 +88,14 @@ def main():
         train_labels = train_data['sentiment']
         test_processed = encode_series_in_batches(test_data[text_column], tokenizer, onnx_model)
         test_labels = test_data['sentiment']
-
-        np.save(r'data\processed\train_embeddings.npy', train_processed)
-        np.save(r'data\processed\train_labels.npy', train_labels)
-        np.save(r'data\processed\test_embeddings.npy', test_processed)
-        np.save(r'data\processed\test_labels.npy', test_labels)
-        logger.info("Preprocessed data saved successfully.", train_embeddings_path='data\processed\train_embeddings.npy', test_embeddings_path='data\processed\test_embeddings.npy')
+        
+        data_save_dir = os.path.join('data', 'processed')
+        os.makedirs(data_save_dir, exist_ok=True)
+        np.save(os.path.join(data_save_dir, 'train_embeddings.npy'), train_processed)
+        np.save(os.path.join(data_save_dir, 'train_labels.npy'), train_labels)
+        np.save(os.path.join(data_save_dir, 'test_embeddings.npy'), test_processed)
+        np.save(os.path.join(data_save_dir, 'test_labels.npy'), test_labels)
+        logger.info("Preprocessed data saved successfully.", train_embeddings_path=os.path.join(data_save_dir, 'train_embeddings.npy'), test_embeddings_path=os.path.join(data_save_dir, 'test_embeddings.npy'))
 
         onnx_model.save_pretrained(save_folder)
         tokenizer.save_pretrained(save_folder)

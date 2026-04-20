@@ -81,6 +81,7 @@ def save_metrics(metrics, metrics_file_path):
         Exception: If there is an error during saving the metrics.
     """
     try:
+        os.makedirs(os.path.dirname(metrics_file_path), exist_ok=True)
         with open(metrics_file_path, 'w') as f:
             json.dump(metrics, f, indent=4)
         logger.info(f"Evaluation metrics saved successfully", metrics_file_path=metrics_file_path)
@@ -106,6 +107,7 @@ def save_model_info(run_id, model_name, model_info_file_path):
             'run_id': run_id,
             'model_path': model_name
         }
+        os.makedirs(os.path.dirname(model_info_file_path), exist_ok=True)
         with open(model_info_file_path, 'w') as f:
             json.dump(model_info, f, indent=4)
         logger.info(f"Model information saved successfully", model_info_file_path=model_info_file_path)
@@ -157,10 +159,13 @@ def main():
                     "pip",
                     {
                         "pip": [
+                            # 1. Point pip to the CPU-only repository
+                            "--extra-index-url https://download.pytorch.org/whl/cpu",
+                            # 2. Explicitly demand the CPU version of torch
+                            "torch==2.1.2+cpu", 
                             "mlflow",
                             "optimum[onnxruntime]",
                             "transformers",
-                            "torch",
                             "scikit-learn",
                             "pandas"
                         ]
@@ -175,7 +180,8 @@ def main():
                 python_model=SentimentPipelineModel(),
                 artifacts=artifacts,
                 registered_model_name=register_model_name,
-                conda_env=conda_env
+                conda_env=conda_env,
+                code_paths=["src"]
             )
 
             save_metrics(evaluation_results, metrics_file_path)
