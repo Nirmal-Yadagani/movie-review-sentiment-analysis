@@ -218,7 +218,6 @@ notebooks/production_onnx_model
 
 # need to track later
 .github
-scripts
 tests
 
 # just for local deployment test
