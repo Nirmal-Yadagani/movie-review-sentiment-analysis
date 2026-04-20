@@ -1,0 +1,94 @@
+name: Build and Push to AWS ECR
+
+on:
+  workflow_dispatch: # Manual trigger
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+  FRONTEND_REPO: movie-review-frontend
+  BACKEND_REPO: movie-review-backend
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    # --- NEW: FETCH MODEL FROM MLFLOW ---
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install MLflow
+      run: pip install mlflow==2.11.1 # Match this to your local version
+
+    - name: Download Model Artifacts from DagsHub
+      env:
+        MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      run: |
+        # Download the Staging model directly into the backend folder
+        mlflow artifacts download -u "models:/MLPClassifier@Staging" -d ./backend/model_artifact
+    # ------------------------------------
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    # --- BUILD, TEST, & PUSH BACKEND ---
+    - name: Build Backend Image
+      working-directory: ./backend
+      run: |
+        docker build -t $ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$BACKEND_REPO:latest .
+
+    - name: Test Backend Container
+      run: |
+        # 1. Start the newly built container in the background
+        docker run -d -p 8080:8080 --name test-backend $ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
+        
+        # 2. Give FastAPI 10 seconds to fully boot up and load the MLflow model
+        sleep 10
+        
+        # 3. Ping the health endpoint. The '-f' flag tells curl to fail the script if it doesn't get a 200 OK!
+        curl -f http://localhost:8080/ping
+        
+        # 4. Clean up the test container
+        docker rm -f test-backend
+
+    - name: Push Backend Image to ECR
+      # This step ONLY runs if the curl command above succeeded
+      run: |
+        docker push $ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$BACKEND_REPO:latest
+
+    # --- BUILD & PUSH FRONTEND ---
+    - name: Build Frontend Image
+      working-directory: ./frontend
+      run: |
+        docker build -t $ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$FRONTEND_REPO:latest .
+
+    - name: Push Frontend Image to ECR
+      run: |
+        docker push $ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$FRONTEND_REPO:latest
+
+    - name: Promote Model in MLflow to Production
+      env:
+        MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      run: |
+        python scripts/transition_to_production.py
