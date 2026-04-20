@@ -24,8 +24,8 @@ jobs:
       with:
         python-version: '3.11'
         
-    - name: Install MLflow
-      run: pip install mlflow==2.11.1 # Match this to your local version
+    - name: Install Python Dependencies
+      run: pip install mlflow==2.11.1 dagshub python-dotenv
 
     - name: Download Model Artifacts from DagsHub
       env:
