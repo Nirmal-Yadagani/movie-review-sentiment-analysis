@@ -1,0 +1,166 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: uv run python -m src.data_tasks.data_ingestion
+    deps:
+    - path: s3://movie-reviews-dataset-307869869272-us-east-1-an/IMDB.csv
+      hash: md5
+      etag: 4b1703fc48839d0bc688c98c7c330041-4
+      size: 66212309
+    - path: src/data_tasks/data_ingestion.py
+      hash: md5
+      md5: f551e12546a09b35bb9f108759961ea0
+      size: 1148
+    params:
+      params.yaml:
+        data_ingestion.data_path: data/
+        data_ingestion.data_url: 
+          s3://movie-reviews-dataset-307869869272-us-east-1-an/IMDB.csv
+        data_ingestion.random_state: 42
+        data_ingestion.test_size: 0.2
+    outs:
+    - path: data/raw/test.csv
+      hash: md5
+      md5: bf04a688c09a6a8b9352720f248de997
+      size: 13064645
+    - path: data/raw/train.csv
+      hash: md5
+      md5: addec971b289cea8f5f18adcdbebe344
+      size: 52303505
+  data_preprocessing:
+    cmd: uv run python -m src.data_tasks.data_preprocessing
+    deps:
+    - path: data/raw/test.csv
+      hash: md5
+      md5: bf04a688c09a6a8b9352720f248de997
+      size: 13064645
+    - path: data/raw/train.csv
+      hash: md5
+      md5: addec971b289cea8f5f18adcdbebe344
+      size: 52303505
+    - path: models/production_onnx_model/
+      hash: md5
+      md5: b79bb95bfaaf1ce5595ae92dd17c30c6.dir
+      size: 91308308
+      nfiles: 6
+    - path: src/data_tasks/data_preprocessing.py
+      hash: md5
+      md5: 5d7e94c62a17f44f50b347ebf7d35644
+      size: 4478
+    params:
+      params.yaml:
+        data_preprocessing.embedder_folder: models/production_onnx_model/
+        data_preprocessing.text_column: review
+    outs:
+    - path: data/processed/test_embeddings.npy
+      hash: md5
+      md5: 03b5d2925df7af6a5fcfcdcbeb781638
+      size: 15232640
+    - path: data/processed/test_labels.npy
+      hash: md5
+      md5: cba64b31b97d8b39a35d7cef547c5844
+      size: 79464
+    - path: data/processed/train_embeddings.npy
+      hash: md5
+      md5: caad91758a534950d7b142ef09c02a73
+      size: 60925568
+    - path: data/processed/train_labels.npy
+      hash: md5
+      md5: 43cf84edcbc969d24adfa3fc6a77d179
+      size: 317448
+  download_model:
+    cmd: uv run python -m src.data_tasks.download_model
+    deps:
+    - path: src/data_tasks/download_model.py
+      hash: md5
+      md5: b1aa70f558f91c69592e4f6b7eb0cd7d
+      size: 1242
+    params:
+      params.yaml:
+        download_model.embedder_model_name: 
+          sentence-transformers/all-MiniLM-L6-v2
+        download_model.embedder_save_folder: models/production_onnx_model/
+    outs:
+    - path: models/production_onnx_model/
+      hash: md5
+      md5: b79bb95bfaaf1ce5595ae92dd17c30c6.dir
+      size: 91308308
+      nfiles: 6
+  model_building:
+    cmd: uv run python -m src.model.model_builder
+    deps:
+    - path: data/processed/test_embeddings.npy
+      hash: md5
+      md5: 03b5d2925df7af6a5fcfcdcbeb781638
+      size: 15232640
+    - path: data/processed/test_labels.npy
+      hash: md5
+      md5: cba64b31b97d8b39a35d7cef547c5844
+      size: 79464
+    - path: data/processed/train_embeddings.npy
+      hash: md5
+      md5: caad91758a534950d7b142ef09c02a73
+      size: 60925568
+    - path: data/processed/train_labels.npy
+      hash: md5
+      md5: 43cf84edcbc969d24adfa3fc6a77d179
+      size: 317448
+    - path: src/model/model_builder.py
+      hash: md5
+      md5: 8709f9d34112db9c3052ea29d2ddb9f0
+      size: 2341
+    params:
+      params.yaml:
+        model_training.activation: tanh
+        model_training.alpha: 0.003600575029200904
+        model_training.hidden_layer_sizes:
+        - 100
+        model_training.learning_rate_init: 0.001
+        model_training.model_path: models/classification_models/model.joblib
+        model_training.solver: sgd
+    outs:
+    - path: models/classification_models/model.joblib
+      hash: md5
+      md5: c033f3d68a344dc2e5b885f2f5aa38e8
+      size: 474708
+  model_evaluation:
+    cmd: uv run python -m src.model.model_evaluation
+    deps:
+    - path: data/processed/test_embeddings.npy
+      hash: md5
+      md5: 03b5d2925df7af6a5fcfcdcbeb781638
+      size: 15232640
+    - path: data/processed/test_labels.npy
+      hash: md5
+      md5: cba64b31b97d8b39a35d7cef547c5844
+      size: 79464
+    - path: models/classification_models/model.joblib
+      hash: md5
+      md5: c033f3d68a344dc2e5b885f2f5aa38e8
+      size: 474708
+    - path: models/production_onnx_model/
+      hash: md5
+      md5: b79bb95bfaaf1ce5595ae92dd17c30c6.dir
+      size: 91308308
+      nfiles: 6
+    - path: src/model/model_evaluation.py
+      hash: md5
+      md5: 1880b0cfee240199525fe0de1b921be6
+      size: 7747
+    params:
+      params.yaml:
+        model_evaluation.embedder_folder_path: models/production_onnx_model
+        model_evaluation.metrics_file_path: reports/metrics.json
+        model_evaluation.model_file_path: 
+          models/classification_models/model.joblib
+        model_evaluation.model_info_file_path: reports/model.json
+        model_evaluation.register_model_name: MLPClassifier
+    outs:
+    - path: reports/metrics.json
+      hash: md5
+      md5: 61d4db8bc6b2f747603f0b9cbbe3b3d0
+      size: 144
+    - path: reports/model.json
+      hash: md5
+      md5: 79cf7fba98bdceafd5eff4e63a5c0cf5
+      size: 79

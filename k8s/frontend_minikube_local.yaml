@@ -1,0 +1,40 @@
+# 1. The Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentiment-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sentiment-frontend
+  template:
+    metadata:
+      labels:
+        app: sentiment-frontend
+    spec:
+      containers:
+      - name: streamlit-frontend
+        # Change this line to v2!
+        image: movie-review-sentiment-analysis-frontend:v2
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8501
+        env:
+        - name: BACKEND_URL 
+          value: "http://backend-service:8080"
+
+---
+# 2. The Frontend Service 
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-loadbalancer
+spec:
+  selector:
+    app: sentiment-frontend
+  ports:
+    - protocol: TCP
+      port: 8501         
+      targetPort: 8501 
+  type: LoadBalancer

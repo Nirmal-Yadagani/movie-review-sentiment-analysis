@@ -1,0 +1,82 @@
+stages:
+  # Stage 1: Pull Data and split it into train and test sets
+  data_ingestion:
+    cmd: uv run python -m src.data_tasks.data_ingestion
+    deps:
+      - s3://movie-reviews-dataset-307869869272-us-east-1-an/IMDB.csv
+      - src/data_tasks/data_ingestion.py
+    params:
+      - data_ingestion.data_url
+      - data_ingestion.test_size
+      - data_ingestion.random_state
+      - data_ingestion.data_path
+    outs:
+      - data/raw/train.csv
+      - data/raw/test.csv
+
+  # Stage 2: Download HuggingFace Model and Convert to ONNX
+  download_model:
+    cmd: uv run python -m src.data_tasks.download_model
+    deps:
+      - src/data_tasks/download_model.py
+    params:
+      - download_model.embedder_model_name
+      - download_model.embedder_save_folder
+    outs:
+      - models/production_onnx_model/:
+          persist: true
+
+  # Stage 3: Process Data and create features/labels
+  data_preprocessing:
+    cmd: uv run python -m src.data_tasks.data_preprocessing
+    deps:
+      - data/raw/train.csv
+      - data/raw/test.csv
+      - models/production_onnx_model/
+      - src/data_tasks/data_preprocessing.py
+    params:
+      - data_preprocessing.text_column
+      - data_preprocessing.embedder_folder
+    outs:
+      - data/processed/train_embeddings.npy
+      - data/processed/test_embeddings.npy
+      - data/processed/train_labels.npy
+      - data/processed/test_labels.npy
+
+  # Stage 4: Train the Classification Model
+  model_building:
+    cmd: uv run python -m src.model.model_builder
+    deps:
+      - data/processed/train_embeddings.npy
+      - data/processed/test_embeddings.npy
+      - data/processed/train_labels.npy
+      - data/processed/test_labels.npy
+      - src/model/model_builder.py
+    params:
+      - model_training.hidden_layer_sizes
+      - model_training.activation
+      - model_training.solver
+      - model_training.alpha
+      - model_training.learning_rate_init
+      - model_training.model_path
+    outs:
+      - models/classification_models/model.joblib
+
+  # Stage 5: Evaluate and Log to MLflow
+  model_evaluation:
+    cmd: uv run python -m src.model.model_evaluation
+    deps:
+      - data/processed/test_embeddings.npy
+      - data/processed/test_labels.npy
+      - models/production_onnx_model/
+      - models/classification_models/model.joblib
+      - src/model/model_evaluation.py
+    params:
+      - model_evaluation.embedder_folder_path
+      - model_evaluation.model_file_path
+      - model_evaluation.metrics_file_path
+      - model_evaluation.model_info_file_path
+      - model_evaluation.register_model_name
+    outs:
+      - reports/metrics.json
+      - reports/model.json

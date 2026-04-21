@@ -1,0 +1,51 @@
+# 1. The Backend Deployment (Your FastAPI Pods)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentiment-backend
+  labels:
+    app: sentiment-backend
+spec:
+  replicas: 2 # Let's run 2 copies for high availability!
+  selector:
+    matchLabels:
+      app: sentiment-backend
+  template:
+    metadata:
+      labels:
+        app: sentiment-backend
+    spec:
+      containers:
+      - name: fastapi-backend
+        # IMPORTANT: Replace with your actual ECR Image URI from the GitHub Action!
+        image: <YOUR_AWS_ACCOUNT_ID>.dkr.ecr.<YOUR_REGION>.amazonaws.com/movie-review-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+---
+# 2. The Backend Service (Internal Networking + Prometheus Scraping)
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  annotations:
+    # THESE 3 LINES ARE THE MAGIC PROMETHEUS HOOK!
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app: sentiment-backend
+  ports:
+    - protocol: TCP
+      port: 8080       # Port inside the cluster
+      targetPort: 8080 # Port on your FastAPI container
+  type: ClusterIP # ClusterIP means it is ONLY accessible from inside the cluster

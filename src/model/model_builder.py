@@ -46,7 +46,7 @@ def main():
 
         logger.info("Loading model parameters...")
         params = load_params('params.yaml')
-        model_params = params['model_training']['model_params']
+        model_params = params['model_training']
 
         model_path = params['model_training']['model_path']
         model = MLPClassifier(hidden_layer_sizes=tuple(model_params['hidden_layer_sizes']), 

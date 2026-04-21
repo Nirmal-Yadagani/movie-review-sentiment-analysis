@@ -71,18 +71,16 @@ def main():
         logger.info("Starting data preprocessing...")
         params = load_params("params.yaml")
         text_column = params['data_preprocessing']['text_column']
-        embedder_model_name = params['data_preprocessing']['embedder_model_name']
-        save_folder = params['data_preprocessing']['embedder_save_folder']
-
-        os.makedirs(save_folder, exist_ok=True)
+        embedder_folder = params['data_preprocessing']['embedder_folder']
 
         train_data = pd.read_csv(os.path.join('data', 'raw', 'train.csv'))
         test_data = pd.read_csv(os.path.join('data', 'raw', 'test.csv'))
         logger.info("Data loaded successfully.", train_data_shape=train_data.shape, test_data_shape=test_data.shape)
  
-        logger.info("Initializing ONNX model and tokenizer...", model_name=embedder_model_name)
-        onnx_model = ORTModelForFeatureExtraction.from_pretrained(embedder_model_name, export=True)
-        tokenizer = AutoTokenizer.from_pretrained(embedder_model_name)
+        # LOAD FROM LOCAL FOLDER (No export=True needed here because it's already an ONNX model)
+        logger.info("Loading local ONNX model and tokenizer...", model_path=embedder_folder)
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(embedder_folder)
+        tokenizer = AutoTokenizer.from_pretrained(embedder_folder)
 
         train_processed = encode_series_in_batches(train_data[text_column], tokenizer, onnx_model)
         train_labels = train_data['sentiment']
@@ -95,17 +93,14 @@ def main():
         np.save(os.path.join(data_save_dir, 'train_labels.npy'), train_labels)
         np.save(os.path.join(data_save_dir, 'test_embeddings.npy'), test_processed)
         np.save(os.path.join(data_save_dir, 'test_labels.npy'), test_labels)
-        logger.info("Preprocessed data saved successfully.", train_embeddings_path=os.path.join(data_save_dir, 'train_embeddings.npy'), test_embeddings_path=os.path.join(data_save_dir, 'test_embeddings.npy'))
-
-        onnx_model.save_pretrained(save_folder)
-        tokenizer.save_pretrained(save_folder)
-        logger.info("ONNX model and tokenizer saved successfully.", save_folder=save_folder)
+        logger.info("Preprocessed data saved successfully.", 
+                    train_embeddings_path=os.path.join(data_save_dir, 'train_embeddings.npy'), 
+                    test_embeddings_path=os.path.join(data_save_dir, 'test_embeddings.npy'))
     
     except Exception as e:
         if isinstance(e, MyException):
             raise e
         raise MyException(e, sys)
-    
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,46 @@
+# 1. The Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentiment-backend
+spec:
+  replicas: 2 
+  selector:
+    matchLabels:
+      app: sentiment-backend
+  template:
+    metadata:
+      labels:
+        app: sentiment-backend
+    spec:
+      containers:
+      - name: fastapi-backend
+        # Use the local image name!
+        image: movie-review-sentiment-analysis-model_backend:v2
+        imagePullPolicy: Never # Tell k8s NOT to download from the internet
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+# 2. The Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app: sentiment-backend
+  ports:
+    - name: http-metrics
+      protocol: TCP
+      port: 8080       
+      targetPort: 8080 
+  type: ClusterIP

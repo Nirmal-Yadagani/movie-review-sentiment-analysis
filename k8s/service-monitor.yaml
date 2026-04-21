@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fastapi-monitor
+  namespace: default
+  labels:
+    # This label tells the Helm stack to pick up this monitor!
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: sentiment-backend
+  endpoints:
+  - port: http-metrics
+    path: /metrics
+    interval: 15s
