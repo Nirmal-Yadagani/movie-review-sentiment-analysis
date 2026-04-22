@@ -9,8 +9,8 @@ stages:
       size: 66212309
     - path: src/data_tasks/data_ingestion.py
       hash: md5
-      md5: f551e12546a09b35bb9f108759961ea0
-      size: 1148
+      md5: 92f7d95c482e105333879f00c3f615bc
+      size: 1636
     params:
       params.yaml:
         data_ingestion.data_path: data/
@@ -40,13 +40,13 @@ stages:
       size: 52303505
     - path: models/production_onnx_model/
       hash: md5
-      md5: b79bb95bfaaf1ce5595ae92dd17c30c6.dir
-      size: 91308308
+      md5: 626f560eb41229ba439dc9cae0c4eb08.dir
+      size: 91351131
       nfiles: 6
     - path: src/data_tasks/data_preprocessing.py
       hash: md5
-      md5: 5d7e94c62a17f44f50b347ebf7d35644
-      size: 4478
+      md5: af36c12e943cfe72d2a88e18c680a747
+      size: 4703
     params:
       params.yaml:
         data_preprocessing.embedder_folder: models/production_onnx_model/
@@ -73,8 +73,8 @@ stages:
     deps:
     - path: src/data_tasks/download_model.py
       hash: md5
-      md5: b1aa70f558f91c69592e4f6b7eb0cd7d
-      size: 1242
+      md5: 2c6073096ff16d63134cfdb395adc533
+      size: 1492
     params:
       params.yaml:
         download_model.embedder_model_name: 
@@ -83,8 +83,8 @@ stages:
     outs:
     - path: models/production_onnx_model/
       hash: md5
-      md5: b79bb95bfaaf1ce5595ae92dd17c30c6.dir
-      size: 91308308
+      md5: 626f560eb41229ba439dc9cae0c4eb08.dir
+      size: 91351131
       nfiles: 6
   model_building:
     cmd: uv run python -m src.model.model_builder
@@ -107,8 +107,8 @@ stages:
       size: 317448
     - path: src/model/model_builder.py
       hash: md5
-      md5: 8709f9d34112db9c3052ea29d2ddb9f0
-      size: 2341
+      md5: 35c28048c57bdf6a6db6ece439431ef3
+      size: 2324
     params:
       params.yaml:
         model_training.activation: tanh
@@ -121,8 +121,8 @@ stages:
     outs:
     - path: models/classification_models/model.joblib
       hash: md5
-      md5: c033f3d68a344dc2e5b885f2f5aa38e8
-      size: 474708
+      md5: 0b534df2af51baaeb04b5fb1c8bf7dc7
+      size: 474740
   model_evaluation:
     cmd: uv run python -m src.model.model_evaluation
     deps:
@@ -136,17 +136,17 @@ stages:
       size: 79464
     - path: models/classification_models/model.joblib
       hash: md5
-      md5: c033f3d68a344dc2e5b885f2f5aa38e8
-      size: 474708
+      md5: 0b534df2af51baaeb04b5fb1c8bf7dc7
+      size: 474740
     - path: models/production_onnx_model/
       hash: md5
-      md5: b79bb95bfaaf1ce5595ae92dd17c30c6.dir
-      size: 91308308
+      md5: 626f560eb41229ba439dc9cae0c4eb08.dir
+      size: 91351131
       nfiles: 6
     - path: src/model/model_evaluation.py
       hash: md5
-      md5: 1880b0cfee240199525fe0de1b921be6
-      size: 7747
+      md5: 846827688cd06736f45e8fef5487712e
+      size: 4841
     params:
       params.yaml:
         model_evaluation.embedder_folder_path: models/production_onnx_model
@@ -158,9 +158,9 @@ stages:
     outs:
     - path: reports/metrics.json
       hash: md5
-      md5: 61d4db8bc6b2f747603f0b9cbbe3b3d0
-      size: 144
+      md5: 4032d563d9448d437f12a7b11b63090e
+      size: 145
     - path: reports/model.json
       hash: md5
-      md5: 79cf7fba98bdceafd5eff4e63a5c0cf5
+      md5: 240d463a65158a0c30486a4cf00ed488
       size: 79

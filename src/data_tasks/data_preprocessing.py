@@ -1,29 +1,39 @@
 import os
 import sys
-
 import numpy as np
 import pandas as pd
-pd.set_option('future.no_silent_downcasting', True)
+import torch
 from optimum.onnxruntime import ORTModelForFeatureExtraction
 from transformers import AutoTokenizer
 from tqdm import tqdm
-import torch
 
 from src.logger import logger
-from src.exception import MyException
+from src.exception import CustomException
 from src.utils.helper_functions import load_params
 
+# Set Pandas options globally after imports
+pd.set_option('future.no_silent_downcasting', True)
 
-def encode_series_in_batches(text_series, tokenizer, onnx_model, batch_size=32):
+
+def encode_series_in_batches(text_series: pd.Series, tokenizer: AutoTokenizer, onnx_model: ORTModelForFeatureExtraction, batch_size: int = 32) -> np.ndarray:
     """
-    Safely converts a Pandas Series of text into an array of embeddings.
+    Converts a Pandas Series of text into an array of embeddings using batch processing
+    to optimize memory usage and processing speed.
+    
+    Args:
+        text_series (pd.Series): The column of text data to be encoded.
+        tokenizer: The HuggingFace tokenizer.
+        onnx_model: The exported ONNX model for feature extraction.
+        batch_size (int): Number of texts to process simultaneously. Defaults to 32.
+        
+    Returns:
+        np.ndarray: A stacked numpy array containing the mean-pooled embeddings.
     """
-    # Convert the Pandas Series to a standard Python list (much faster to slice)
     texts = text_series.tolist()
     all_embeddings = []
     
-    # Loop through the list in chunks (batches)
-    logger.info("Encoding text in batches...", total_texts=len(texts), batch_size=batch_size)
+    logger.info("Encoding text in batches", total_texts=len(texts), batch_size=batch_size)
+    
     for i in tqdm(range(0, len(texts), batch_size), desc="Encoding Text"):
         batch_texts = texts[i : i + batch_size]
         
@@ -33,7 +43,7 @@ def encode_series_in_batches(text_series, tokenizer, onnx_model, batch_size=32):
         # 2. Run the ONNX model
         outputs = onnx_model(**inputs)
         
-        # 3. Perform Mean Pooling
+        # 3. Perform Mean Pooling (incorporating attention mask)
         token_embeddings = outputs.last_hidden_state
         attention_mask = inputs['attention_mask'].unsqueeze(-1).expand(token_embeddings.size()).float()
         
@@ -41,66 +51,67 @@ def encode_series_in_batches(text_series, tokenizer, onnx_model, batch_size=32):
         sum_mask = torch.clamp(attention_mask.sum(1), min=1e-9)
         
         batch_embeddings = (sum_embeddings / sum_mask).detach().numpy()
-        
-        # Store the results of this batch
         all_embeddings.append(batch_embeddings)
         
-    # Stack all the tiny batch arrays back into one massive matrix
     return np.vstack(all_embeddings)
 
 
-def encode_text(text, tokenizer, onnx_model):
+def main() -> None:
     """
-    Safely converts a single string of text into an array of embeddings.
+    Executes the preprocessing pipeline: loads train/test data, generates 
+    ONNX-accelerated text embeddings, and saves the processed numpy arrays.
     """
-    logger.info("Encoding single text input...")
-    inputs = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
-    outputs = onnx_model(**inputs)
+    log = logger.bind(stage="data_preprocessing")
     
-    token_embeddings = outputs.last_hidden_state
-    attention_mask = inputs['attention_mask'].unsqueeze(-1).expand(token_embeddings.size()).float()
-    
-    sum_embeddings = torch.sum(token_embeddings * attention_mask, 1)
-    sum_mask = torch.clamp(attention_mask.sum(1), min=1e-9)
-    
-    return (sum_embeddings / sum_mask).detach().numpy()
-    
-
-def main():
     try:
-        logger.info("Starting data preprocessing...")
+        log.info("Starting data preprocessing")
+        
         params = load_params("params.yaml")
         text_column = params['data_preprocessing']['text_column']
+        batch_size = params['data_preprocessing']['batch_size']
         embedder_folder = params['data_preprocessing']['embedder_folder']
 
         train_data = pd.read_csv(os.path.join('data', 'raw', 'train.csv'))
         test_data = pd.read_csv(os.path.join('data', 'raw', 'test.csv'))
-        logger.info("Data loaded successfully.", train_data_shape=train_data.shape, test_data_shape=test_data.shape)
+        
+        log.info("Raw data loaded successfully", 
+                 train_data_shape=train_data.shape, 
+                 test_data_shape=test_data.shape)
  
-        # LOAD FROM LOCAL FOLDER (No export=True needed here because it's already an ONNX model)
-        logger.info("Loading local ONNX model and tokenizer...", model_path=embedder_folder)
+        log.info("Loading local ONNX model and tokenizer", model_path=embedder_folder)
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(embedder_folder)
         tokenizer = AutoTokenizer.from_pretrained(embedder_folder)
 
-        train_processed = encode_series_in_batches(train_data[text_column], tokenizer, onnx_model)
+        # Process Train Data
+        log.info("Processing training data")
+        train_processed = encode_series_in_batches(train_data[text_column], tokenizer, onnx_model, batch_size)
         train_labels = train_data['sentiment']
-        test_processed = encode_series_in_batches(test_data[text_column], tokenizer, onnx_model)
+        
+        # Process Test Data
+        log.info("Processing testing data")
+        test_processed = encode_series_in_batches(test_data[text_column], tokenizer, onnx_model, batch_size)
         test_labels = test_data['sentiment']
         
+        # Save Outputs
         data_save_dir = os.path.join('data', 'processed')
         os.makedirs(data_save_dir, exist_ok=True)
-        np.save(os.path.join(data_save_dir, 'train_embeddings.npy'), train_processed)
+        
+        train_path = os.path.join(data_save_dir, 'train_embeddings.npy')
+        test_path = os.path.join(data_save_dir, 'test_embeddings.npy')
+        
+        np.save(train_path, train_processed)
         np.save(os.path.join(data_save_dir, 'train_labels.npy'), train_labels)
-        np.save(os.path.join(data_save_dir, 'test_embeddings.npy'), test_processed)
+        np.save(test_path, test_processed)
         np.save(os.path.join(data_save_dir, 'test_labels.npy'), test_labels)
-        logger.info("Preprocessed data saved successfully.", 
-                    train_embeddings_path=os.path.join(data_save_dir, 'train_embeddings.npy'), 
-                    test_embeddings_path=os.path.join(data_save_dir, 'test_embeddings.npy'))
+        
+        log.info("Preprocessed data saved successfully", 
+                 train_embeddings_path=train_path, 
+                 test_embeddings_path=test_path,
+                 embedding_dimensions=train_processed.shape)
     
     except Exception as e:
-        if isinstance(e, MyException):
-            raise e
-        raise MyException(e, sys)
+        log.error("Data preprocessing pipeline failed", error=str(e))
+        raise CustomException(e, sys)
 
 if __name__ == "__main__":
     main()

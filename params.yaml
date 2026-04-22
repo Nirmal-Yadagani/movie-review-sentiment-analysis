@@ -10,6 +10,7 @@ download_model:
 
 data_preprocessing:
   text_column: review
+  batch_size: 512
   embedder_folder: models/production_onnx_model/
 
 model_training:
