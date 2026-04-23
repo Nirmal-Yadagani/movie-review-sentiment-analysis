@@ -1,29 +1,26 @@
 import os
 import requests
 import streamlit as st
+import structlog
 
-from src.logger import logger
+# Configure Structlog to output JSON
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ]
+)
+logger = structlog.get_logger(service="streamlit_frontend")
 
-# Fetch environment variables with fallbacks
 BACKEND_BASE_URL = os.environ.get("BACKEND_URL", "http://model_backend:8080")
 API_URL = f"{BACKEND_BASE_URL}/invocations"
 
 def main() -> None:
-    """
-    Renders the Streamlit frontend and handles API interaction with the FastAPI backend.
-    """
-    # Bind UI logs for observability
-    log = logger.bind(service="streamlit_frontend")
-    
     st.set_page_config(page_title="Movie Sentiment Analyzer", page_icon="🎬")
     st.title("🎬 Movie Review Sentiment Analyzer")
-    st.write("Enter a movie review below to see if it is positive or negative.")
 
-    user_review = st.text_area(
-        "Review text:", 
-        height=150, 
-        placeholder="e.g., The cinematography was amazing, but the plot was so boring..."
-    )
+    user_review = st.text_area("Review text:", height=150)
 
     if st.button("Analyze Sentiment"):
         if user_review.strip():
@@ -36,26 +33,27 @@ def main() -> None:
                 }
                 
                 try:
-                    log.info("Sending payload to backend", api_url=API_URL)
+                    # Structlog: Pass variables as kwargs, not f-strings!
+                    logger.info("backend_request", api_url=API_URL, payload_size=len(user_review))
                     response = requests.post(API_URL, json=payload, timeout=10)
                     
                     if response.status_code == 200:
                         result = response.json()
                         sentiment = result["predictions"][0]["sentiment"]
                         
-                        log.info("Received valid response", sentiment=sentiment)
+                        logger.info("backend_response_success", sentiment=sentiment)
+                        
                         if sentiment.lower() == "positive":
                             st.success("**Positive!** 🎉")
                         else:
                             st.error("**Negative.** 📉")
                     else:
-                        error_msg = f"API Error: {response.status_code} - {response.text}"
-                        log.error("Backend returned an error", status_code=response.status_code, error=response.text)
-                        st.error(error_msg)
+                        logger.error("backend_response_error", status_code=response.status_code, error_detail=response.text)
+                        st.error(f"API Error: {response.status_code}")
                         
                 except requests.exceptions.ConnectionError as e:
-                    log.error("Failed to connect to backend", error=str(e))
-                    st.error(f"Failed to connect to the backend at {API_URL}. Is the container running?")
+                    logger.error("backend_connection_failed", error=str(e))
+                    st.error("Failed to connect to the backend. Is the container running?")
         else:
             st.warning("Please enter a review first.")
 

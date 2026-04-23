@@ -7,79 +7,62 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import mlflow.pyfunc
 from prometheus_fastapi_instrumentator import Instrumentator
+import structlog
 
-from src.logger import logger
+# Configure Structlog for the backend
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ]
+)
+logger = structlog.get_logger(service="fastapi_backend")
 
-# Global cache to hold the model instance
 model_cache = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Manages the lifecycle of the FastAPI application.
-    Loads the ML model into memory before accepting HTTP requests
-    and handles graceful shutdown.
-    """
-    log = logger.bind(service="fastapi_backend")
     model_path = os.getenv("MODEL_PATH", "/app/model")
-    
     try:
-        log.info("Starting up API and loading MLflow model", model_path=model_path)
+        logger.info("startup_initiating", model_path=model_path)
         model_cache["model"] = mlflow.pyfunc.load_model(model_path)
-        log.info("Model loaded successfully and ready for inference")
+        logger.info("model_loaded_successfully")
         yield
     except Exception as e:
-        log.error("Failed to load model during startup", error=str(e))
-        # Yield anyway to allow the app to fail gracefully or serve healthchecks
+        logger.error("model_load_failed", error=str(e))
         yield 
     finally:
-        log.info("Shutting down API, cleaning up resources")
+        logger.info("shutdown_initiating")
         model_cache.clear()
 
-# Initialize the API with the lifespan manager
 app = FastAPI(title="Movie Sentiment Model API", lifespan=lifespan)
-
-# Instrument the API to expose the /metrics endpoint for Prometheus observability
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 class DataframeSplit(BaseModel):
-    """Pydantic schema representing the dataframe split format required by MLflow."""
     columns: List[str]
     data: List[List[str]]
 
 class InferenceRequest(BaseModel):
-    """Pydantic schema for the incoming inference payload."""
     dataframe_split: DataframeSplit
-
 
 @app.get("/ping")
 def ping() -> Dict[str, str]:
-    """Healthcheck endpoint used by Kubernetes or Docker to verify the container is alive."""
     return {"status": "healthy"}
-
 
 @app.post("/invocations")
 def predict(request: InferenceRequest) -> Dict[str, List[Dict[str, str]]]:
-    """
-    Main inference endpoint. Extracts text from the MLflow-formatted request,
-    runs the sentiment model, and returns the formatted prediction.
-    """
-    log = logger.bind(endpoint="/invocations")
-    
     if "model" not in model_cache:
-        log.error("Inference attempted but model is not loaded in memory")
+        logger.error("inference_rejected", reason="model_unavailable")
         raise HTTPException(status_code=503, detail="Model is currently unavailable.")
         
     try:
-        # Extract the text
         input_text = request.dataframe_split.data[0][0]
-        log.info("Received inference request", text_length=len(input_text))
+        logger.info("inference_started", text_length=len(input_text))
         
-        # Run the model
         model = model_cache["model"]
         predictions = model.predict([input_text])
         
-        # Format the output to exactly match what the frontend expects
         if hasattr(predictions, "to_dict"):
             formatted_preds = predictions.to_dict(orient="records")
         elif hasattr(predictions, "tolist") or isinstance(predictions, list):
@@ -88,9 +71,9 @@ def predict(request: InferenceRequest) -> Dict[str, List[Dict[str, str]]]:
         else:
             formatted_preds = [{"sentiment": str(predictions)}]
             
-        log.info("Inference successful", prediction=formatted_preds[0])
+        logger.info("inference_completed", prediction=formatted_preds[0])
         return {"predictions": formatted_preds}
         
     except Exception as e:
-        log.error("Inference failed", error=str(e))
+        logger.error("inference_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))

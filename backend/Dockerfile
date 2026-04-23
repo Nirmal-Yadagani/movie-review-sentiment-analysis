@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 4. Copy the raw MLflow model artifact and our new FastAPI script
 COPY ./model_artifact /app/model
-COPY ./src /app/src
 COPY ./main.py /app/main.py
 
 # 5. AUTOMATED PYTORCH FIX: Install the latest CPU-only version of PyTorch.
@@ -22,6 +21,7 @@ RUN grep -v "torch" /app/model/requirements.txt > /app/model/req_no_torch.txt &&
     echo "fastapi" >> /app/model/req_no_torch.txt && \
     echo "uvicorn[standard]" >> /app/model/req_no_torch.txt && \
     echo "prometheus-fastapi-instrumentator" >> /app/model/req_no_torch.txt && \
+    echo "structlog" >> /app/model/req_no_torch.txt && \
     pip install --no-cache-dir -r /app/model/req_no_torch.txt
 
 # 7. Expose the port our API will run on
