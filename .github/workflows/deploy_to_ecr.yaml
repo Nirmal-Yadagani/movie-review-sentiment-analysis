@@ -34,7 +34,7 @@ jobs:
         MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
       run: |
         # Download the Staging model directly into the backend folder
-        mlflow artifacts download -u "models:/MLPClassifier@Staging" -d ./backend/model_artifact
+        mlflow artifacts download -u "models:/MLPClassifier@staging" -d ./backend/model_artifact
     # ------------------------------------
 
     - name: Configure AWS credentials
