@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 4. Copy the raw MLflow model artifact and our new FastAPI script
 COPY ./model_artifact /app/model
+COPY ./src /app/src
 COPY ./main.py /app/main.py
 
 # 5. AUTOMATED PYTORCH FIX: Install the latest CPU-only version of PyTorch.
